@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"html/template"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -162,6 +163,9 @@ func NewProxy(target *url.URL) *httputil.ReverseProxy {
 		originalDirector(req)
 		req.Host = originalHost
 
+		// Disable compression so we can inspect body
+		req.Header.Del("Accept-Encoding")
+
 		// Set X-Forwarded-Host if not present
 		if req.Header.Get("X-Forwarded-Host") == "" {
 			req.Header.Set("X-Forwarded-Host", originalHost)
@@ -177,6 +181,25 @@ func NewProxy(target *url.URL) *httputil.ReverseProxy {
 	}
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		// Inject JS to check for X-Mitigation header
+		contentType := resp.Header.Get("Content-Type")
+		if strings.HasPrefix(contentType, "text/html") {
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			resp.Body.Close()
+
+			// JS to check X-Mitigation header
+			js := `<script>(function(){var c=function(h){if(h==='challenge')window.location.reload()};var f=window.fetch;if(f){var o=f;window.fetch=function(){return o.apply(this,arguments).then(function(r){if(r&&r.headers&&r.headers.get)c(r.headers.get('X-Mitigation'));return r})}};var x=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){this.addEventListener('load',function(){if(this.getResponseHeader)c(this.getResponseHeader('X-Mitigation'))});return x.apply(this,arguments)}})();</script>`
+
+			newBody := string(bodyBytes) + js
+
+			resp.Body = io.NopCloser(strings.NewReader(newBody))
+			resp.ContentLength = int64(len(newBody))
+			resp.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
+		}
+
 		location := resp.Header.Get("Location")
 		if location == "" {
 			return nil
@@ -267,6 +290,7 @@ func (app *App) serveChallenge(w http.ResponseWriter, r *http.Request, errMsg st
 		OriginalURL: r.URL.String(),
 	}
 
+	w.Header().Set("X-Mitigation", "challenge")
 	w.WriteHeader(http.StatusOK)
 	app.templates.Execute(w, data)
 }
