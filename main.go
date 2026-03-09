@@ -181,6 +181,9 @@ func NewProxy(target *url.URL) *httputil.ReverseProxy {
 	}
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
+		// Add Via header for clean traffic
+		resp.Header.Set("Via", "ddos-protection/0.1")
+
 		// Inject JS to check for X-Mitigation header
 		contentType := resp.Header.Get("Content-Type")
 		if strings.HasPrefix(contentType, "text/html") {
