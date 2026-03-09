@@ -161,6 +161,51 @@ func NewProxy(target *url.URL) *httputil.ReverseProxy {
 		originalHost := req.Host
 		originalDirector(req)
 		req.Host = originalHost
+
+		// Set X-Forwarded-Host if not present
+		if req.Header.Get("X-Forwarded-Host") == "" {
+			req.Header.Set("X-Forwarded-Host", originalHost)
+		}
+		// Set X-Forwarded-Proto if not present
+		if req.Header.Get("X-Forwarded-Proto") == "" {
+			scheme := "http"
+			if req.TLS != nil {
+				scheme = "https"
+			}
+			req.Header.Set("X-Forwarded-Proto", scheme)
+		}
+	}
+
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		location := resp.Header.Get("Location")
+		if location == "" {
+			return nil
+		}
+
+		locURL, err := url.Parse(location)
+		if err != nil {
+			return nil
+		}
+
+		// If the redirect location host matches the backend target host,
+		// rewrite it to the original request host.
+		if locURL.Host == target.Host {
+			locURL.Host = resp.Request.Host
+
+			// Attempt to preserve the scheme from X-Forwarded-Proto
+			scheme := resp.Request.Header.Get("X-Forwarded-Proto")
+			if scheme == "" {
+				if resp.Request.TLS != nil {
+					scheme = "https"
+				} else {
+					scheme = "http"
+				}
+			}
+			locURL.Scheme = scheme
+
+			resp.Header.Set("Location", locURL.String())
+		}
+		return nil
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
