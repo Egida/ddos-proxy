@@ -111,7 +111,8 @@ func (m *Manager) serveChallenge(w http.ResponseWriter, r *http.Request, errMsg 
 	}
 
 	w.Header().Set("X-Mitigation", "challenge")
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.WriteHeader(http.StatusTeapot)
 	m.templates.Execute(w, data)
 }
 
