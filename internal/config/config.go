@@ -9,19 +9,20 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	BackendURL         string
-	Port               string
-	MaxReqPerSec       int64
-	MaxConnPerSec      int64
-	VerifyTime         time.Duration
-	MitigationTime     time.Duration
-	TurnstileSiteKey   string
-	TurnstileSecretKey string
-	AlwaysOn           bool
-	UseForwardedFor    bool
-	CloudflareSupport  bool
-	WhitelistedUA      []string
-	WhitelistRateLimit int64
+	BackendURL          string
+	Port                string
+	MaxReqPerSec        int64
+	MaxConnPerSec       int64
+	VerifyTime          time.Duration
+	MitigationTime      time.Duration
+	TurnstileSiteKey    string
+	TurnstileSecretKey  string
+	AlwaysOn            bool
+	UseForwardedFor     bool
+	CloudflareSupport   bool
+	WhitelistedUA       []string
+	WhitelistRateLimit  int64
+	MaxFailedChallenges int
 }
 
 // Load loads the configuration from environment variables.
@@ -101,19 +102,27 @@ func Load() (*Config, error) {
 		}
 	}
 
+	maxFailedChallenges := 5
+	if s := os.Getenv("PROXY_MAX_FAILED_CHALLENGES"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			maxFailedChallenges = v
+		}
+	}
+
 	return &Config{
-		BackendURL:         backendURL,
-		Port:               port,
-		MaxReqPerSec:       maxReq,
-		MaxConnPerSec:      maxConn,
-		VerifyTime:         verifyTime,
-		MitigationTime:     mitigationTime,
-		TurnstileSiteKey:   os.Getenv("PROXY_TURNSTILE_PUBLIC_KEY"),
-		TurnstileSecretKey: os.Getenv("PROXY_TURNSTILE_PRIVATE_KEY"),
-		AlwaysOn:           alwaysOn,
-		UseForwardedFor:    useForwardedFor,
-		CloudflareSupport:  cloudflareSupport,
-		WhitelistedUA:      whitelistedUA,
-		WhitelistRateLimit: whitelistRateLimit,
+		BackendURL:          backendURL,
+		Port:                port,
+		MaxReqPerSec:        maxReq,
+		MaxConnPerSec:       maxConn,
+		VerifyTime:          verifyTime,
+		MitigationTime:      mitigationTime,
+		TurnstileSiteKey:    os.Getenv("PROXY_TURNSTILE_PUBLIC_KEY"),
+		TurnstileSecretKey:  os.Getenv("PROXY_TURNSTILE_PRIVATE_KEY"),
+		AlwaysOn:            alwaysOn,
+		UseForwardedFor:     useForwardedFor,
+		CloudflareSupport:   cloudflareSupport,
+		WhitelistedUA:       whitelistedUA,
+		WhitelistRateLimit:  whitelistRateLimit,
+		MaxFailedChallenges: maxFailedChallenges,
 	}, nil
 }

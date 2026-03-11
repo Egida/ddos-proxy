@@ -304,7 +304,7 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 			} else {
 				// Already served, this is a violation if it's not the verification (checked above)
 				state.violationCount++
-				if state.violationCount > 5 {
+				if state.violationCount > m.cfg.MaxFailedChallenges {
 					state.blocked = true
 					state.blockedAt = time.Now()
 					state.mu.Unlock()
