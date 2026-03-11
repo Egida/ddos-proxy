@@ -15,7 +15,7 @@ RUN go mod download
 COPY . .
 
 # Build the application statically linked
-RUN CGO_ENABLED=0 GOOS=linux go build -o proxy main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o proxy cmd/ddos-proxy/main.go
 
 # Use a scratch image or alpine for the smallest footprint
 FROM alpine:latest

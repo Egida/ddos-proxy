@@ -2,11 +2,11 @@
 
 # Build the application
 build:
-	go build -o proxy main.go
+	go build -o proxy cmd/ddos-proxy/main.go
 
 # Run the application
 run:
-	PROXY_BACKEND_URL=https://example.com PORT=8080 go run main.go
+	PROXY_BACKEND_URL=https://example.com PORT=8080 go run cmd/ddos-proxy/main.go
 
 # Run tests
 test:
