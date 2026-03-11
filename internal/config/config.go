@@ -19,6 +19,7 @@ type Config struct {
 	TurnstileSecretKey string
 	AlwaysOn           bool
 	UseForwardedFor    bool
+	CloudflareSupport  bool
 	WhitelistedUA      []string
 	WhitelistRateLimit int64
 }
@@ -78,6 +79,11 @@ func Load() (*Config, error) {
 		useForwardedFor = true
 	}
 
+	cloudflareSupport := false
+	if s := os.Getenv("PROXY_CLOUDFLARE_SUPPORT"); s == "true" || s == "1" {
+		cloudflareSupport = true
+	}
+
 	var whitelistedUA []string
 	if s := os.Getenv("PROXY_WHITELIST_UA"); s != "" {
 		parts := strings.Split(s, ",")
@@ -106,6 +112,7 @@ func Load() (*Config, error) {
 		TurnstileSecretKey: os.Getenv("PROXY_TURNSTILE_PRIVATE_KEY"),
 		AlwaysOn:           alwaysOn,
 		UseForwardedFor:    useForwardedFor,
+		CloudflareSupport:  cloudflareSupport,
 		WhitelistedUA:      whitelistedUA,
 		WhitelistRateLimit: whitelistRateLimit,
 	}, nil

@@ -53,6 +53,13 @@ func NewManager(cfg *config.Config, rl *limiter.RateLimiter, tmpl *template.Temp
 }
 
 func (m *Manager) getClientIP(r *http.Request) string {
+	if m.cfg.CloudflareSupport {
+		cfIP := r.Header.Get("CF-Connecting-IP")
+		if cfIP != "" {
+			return cfIP
+		}
+	}
+
 	if m.cfg.UseForwardedFor {
 		forwarded := r.Header.Get("X-Forwarded-For")
 		if forwarded != "" {
