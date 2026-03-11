@@ -32,3 +32,11 @@ var (
 		[]string{"reason"},
 	)
 )
+
+func init() {
+	// Initialize counters to 0 so they appear in metrics output immediately.
+	DroppedRequests.WithLabelValues("blocked_ip").Add(0)
+	DroppedRequests.WithLabelValues("challenge_violation").Add(0)
+	DroppedRequests.WithLabelValues("whitelist_rate_limit").Add(0)
+	DroppedRequests.WithLabelValues("metrics_rate_limit").Add(0)
+}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/hegy/ddos-proxy/internal/config"
 	"github.com/hegy/ddos-proxy/internal/limiter"
+	"github.com/hegy/ddos-proxy/internal/metrics"
 	"github.com/hegy/ddos-proxy/internal/proxy"
 	"github.com/hegy/ddos-proxy/internal/waf"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -70,6 +71,7 @@ func main() {
 				ip = r.RemoteAddr
 			}
 			if !metricsLimiter.Allow(ip) {
+				metrics.DroppedRequests.WithLabelValues("metrics_rate_limit").Inc()
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}
