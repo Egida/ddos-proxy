@@ -14,6 +14,7 @@ import (
 
 	"github.com/hegy/ddos-proxy/internal/config"
 	"github.com/hegy/ddos-proxy/internal/limiter"
+	"github.com/hegy/ddos-proxy/internal/metrics"
 )
 
 // Manager holds the application state and protection logic.
@@ -114,6 +115,11 @@ func (m *Manager) serveChallenge(w http.ResponseWriter, r *http.Request, errMsg 
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.WriteHeader(http.StatusTeapot)
 	m.templates.Execute(w, data)
+
+	// Increment challenged requests metric
+	if m.cfg.PrometheusEnabled {
+		metrics.ChallengedRequests.Inc()
+	}
 }
 
 func (m *Manager) verifyChallenge(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +129,9 @@ func (m *Manager) verifyChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
+		if m.cfg.PrometheusEnabled {
+			metrics.DroppedRequests.WithLabelValues("challenge_invalid_form").Inc()
+		}
 		m.serveChallenge(w, r, "Invalid form data")
 		return
 	}
@@ -130,11 +139,17 @@ func (m *Manager) verifyChallenge(w http.ResponseWriter, r *http.Request) {
 	// Turnstile Verification
 	responseToken := r.FormValue("cf-turnstile-response")
 	if responseToken == "" {
+		if m.cfg.PrometheusEnabled {
+			metrics.DroppedRequests.WithLabelValues("challenge_empty_token").Inc()
+		}
 		m.serveChallenge(w, r, "Please complete the CAPTCHA")
 		return
 	}
 	ip := m.getClientIP(r)
 	if !m.verifyTurnstile(responseToken, ip) {
+		if m.cfg.PrometheusEnabled {
+			metrics.DroppedRequests.WithLabelValues("challenge_verification_failed").Inc()
+		}
 		m.serveChallenge(w, r, "CAPTCHA verification failed")
 		return
 	}
@@ -154,6 +169,11 @@ func (m *Manager) verifyChallenge(w http.ResponseWriter, r *http.Request) {
 	if originalURL == "" {
 		originalURL = "/"
 	}
+
+	if m.cfg.PrometheusEnabled {
+		metrics.AllowedRequests.WithLabelValues("challenge_solved").Inc()
+	}
+
 	http.Redirect(w, r, originalURL, http.StatusFound)
 }
 
@@ -232,10 +252,16 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 		if isWhitelisted {
 			current := m.rl.GetWhitelistReqCount()
 			if current >= m.cfg.WhitelistRateLimit {
+				if m.cfg.PrometheusEnabled {
+					metrics.DroppedRequests.WithLabelValues("whitelist_rate_limit").Inc()
+				}
 				http.Error(w, "Rate Limit Exceeded", http.StatusTooManyRequests)
 				return
 			}
 			m.rl.IncWhitelistReq()
+			if m.cfg.PrometheusEnabled {
+				metrics.AllowedRequests.WithLabelValues("whitelist").Inc()
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -249,6 +275,9 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 		if state.blocked {
 			state.mu.Unlock()
 			// Hijack and close connection
+			if m.cfg.PrometheusEnabled {
+				metrics.DroppedRequests.WithLabelValues("blocked_ip").Inc()
+			}
 			if hijacker, ok := w.(http.Hijacker); ok {
 				conn, _, err := hijacker.Hijack()
 				if err == nil {
@@ -265,6 +294,9 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 			// Check expiration
 			if time.Since(state.verifiedAt) < m.cfg.VerifyTime {
 				state.mu.Unlock()
+				if m.cfg.PrometheusEnabled {
+					metrics.AllowedRequests.WithLabelValues("verified").Inc()
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -308,6 +340,9 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 					state.blocked = true
 					state.blockedAt = time.Now()
 					state.mu.Unlock()
+					if m.cfg.PrometheusEnabled {
+						metrics.DroppedRequests.WithLabelValues("challenge_violation").Inc()
+					}
 					if hijacker, ok := w.(http.Hijacker); ok {
 						conn, _, err := hijacker.Hijack()
 						if err == nil {
@@ -325,6 +360,9 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 
 		// Increment request counter
 		m.rl.IncReq()
+		if m.cfg.PrometheusEnabled {
+			metrics.AllowedRequests.WithLabelValues("normal").Inc()
+		}
 		next.ServeHTTP(w, r)
 	})
 }
