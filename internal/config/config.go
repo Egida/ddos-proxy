@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -18,6 +19,8 @@ type Config struct {
 	TurnstileSecretKey string
 	AlwaysOn           bool
 	UseForwardedFor    bool
+	WhitelistedUA      []string
+	WhitelistRateLimit int64
 }
 
 // Load loads the configuration from environment variables.
@@ -75,6 +78,23 @@ func Load() (*Config, error) {
 		useForwardedFor = true
 	}
 
+	var whitelistedUA []string
+	if s := os.Getenv("PROXY_WHITELIST_UA"); s != "" {
+		parts := strings.Split(s, ",")
+		for _, p := range parts {
+			if trimmed := strings.TrimSpace(p); trimmed != "" {
+				whitelistedUA = append(whitelistedUA, trimmed)
+			}
+		}
+	}
+
+	whitelistRateLimit := int64(10)
+	if s := os.Getenv("PROXY_WHITELIST_RATE"); s != "" {
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			whitelistRateLimit = v
+		}
+	}
+
 	return &Config{
 		BackendURL:         backendURL,
 		Port:               port,
@@ -86,5 +106,7 @@ func Load() (*Config, error) {
 		TurnstileSecretKey: os.Getenv("PROXY_TURNSTILE_PRIVATE_KEY"),
 		AlwaysOn:           alwaysOn,
 		UseForwardedFor:    useForwardedFor,
+		WhitelistedUA:      whitelistedUA,
+		WhitelistRateLimit: whitelistRateLimit,
 	}, nil
 }

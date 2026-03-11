@@ -209,6 +209,29 @@ func (m *Manager) cleanup() {
 // It checks rate limits, IP blocking, and serves challenges if necessary.
 func (m *Manager) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check Whitelisted User Agents
+		ua := r.Header.Get("User-Agent")
+		isWhitelisted := false
+		if len(m.cfg.WhitelistedUA) > 0 {
+			for _, wua := range m.cfg.WhitelistedUA {
+				if strings.Contains(ua, wua) {
+					isWhitelisted = true
+					break
+				}
+			}
+		}
+
+		if isWhitelisted {
+			current := m.rl.GetWhitelistReqCount()
+			if current >= m.cfg.WhitelistRateLimit {
+				http.Error(w, "Rate Limit Exceeded", http.StatusTooManyRequests)
+				return
+			}
+			m.rl.IncWhitelistReq()
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		ip := m.getClientIP(r)
 
 		// Check if IP is blocked
