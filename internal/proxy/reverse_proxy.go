@@ -11,9 +11,14 @@ import (
 )
 
 // New creates a new reverse proxy handler for the given target URL.
-// It includes logic for header manipulation and JS injection for mitigation checks.
-func New(target *url.URL) *httputil.ReverseProxy {
+// originalBackendHost is used to rewrite redirects. If empty, target.Host is used.
+func New(target *url.URL, originalBackendHost string) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
+
+	rewriteHost := target.Host
+	if originalBackendHost != "" {
+		rewriteHost = originalBackendHost
+	}
 
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
@@ -81,7 +86,7 @@ func New(target *url.URL) *httputil.ReverseProxy {
 
 		// If the redirect location host matches the backend target host,
 		// rewrite it to the original request host.
-		if locURL.Host == target.Host {
+		if locURL.Host == rewriteHost {
 			locURL.Host = resp.Request.Host
 
 			// Attempt to preserve the scheme from X-Forwarded-Proto
