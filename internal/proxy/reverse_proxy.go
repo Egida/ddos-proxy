@@ -70,6 +70,10 @@ func New(target *url.URL, cfg *config.Config) *httputil.ReverseProxy {
 		originalDirector(req)
 		req.Host = originalHost
 
+		// Strip client Cache-Control headers so devtools "Disable cache" doesn't bypass our proxy cache
+		req.Header.Del("Cache-Control")
+		req.Header.Del("Pragma")
+
 		// Disable compression so we can inspect body
 		req.Header.Del("Accept-Encoding")
 
